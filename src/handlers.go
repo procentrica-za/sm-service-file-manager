@@ -66,58 +66,84 @@ func (s *Server) handleGetCardImage() http.HandlerFunc {
 			return
 		}
 
-		//check if the file exists in the file system
-		fileName := conf.ResourcesPath + entityID + "/" + cardImage.FilePath
-
-		if cardImage.FilePath == "" {
-			w.WriteHeader(500)
-			fmt.Fprint(w, "Image not found -->"+fileName)
-			fmt.Println("No image found")
-			return
-		}
-
-		Openfile, err := os.Open(fileName)
-		defer Openfile.Close()
-
-		if err != nil {
-			//File not found
-			w.WriteHeader(400)
-			fmt.Fprint(w, "File was not found in file system")
-			fmt.Println("File not found: " + fileName)
-			return
-		}
-
-		FileHeader := make([]byte, 512)
-
-		Openfile.Read(FileHeader)
-
-		//We already read 512 bytes, so we reset the offset back to 0
-		Openfile.Seek(0, 0)
-		/*
-			THE BELOW WAS FOR WHEN WE WERE SENDING THE FILE BACK AS A FILE
-			FileContentType := http.DetectContentType(FileHeader)
-			//Get info from file
-			FileStat, _ := Openfile.Stat()
-			//get size of the file as a string value
-			FileSize := strconv.FormatInt(FileStat.Size(), 10)
-			//Send the headers
-			w.Header().Set("Content-Disposition", "attachment; filename="+cardImage.FileName)
-			w.Header().Set("Content-Type", FileContentType)
-			w.Header().Set("Content-Length", FileSize)
-			//Send the file
-			//io.Copy(w, Openfile)
-		*/
-
-		bytes, err := ioutil.ReadAll(Openfile)
-		if err != nil {
-			log.Fatal(err)
-		}
-
 		cardimagebytes := CardImageBytes{}
 		cardimagebytes.EntityID = entityID
-		cardimagebytes.ImageBytes = bytes
+		if cardImage.FileName != "" {
+			//check if the file exists in the file system
+			fileName := conf.ResourcesPath + entityID + "/" + cardImage.FilePath
 
-		fmt.Println("Image converted to []byte and sent to caller for entityid --> " + entityID)
+			if cardImage.FilePath == "" {
+				w.WriteHeader(500)
+				fmt.Fprint(w, "Image not found -->"+fileName)
+				fmt.Println("No image found")
+				return
+			}
+
+			Openfile, err := os.Open(fileName)
+			defer Openfile.Close()
+
+			if err != nil {
+				//File not found
+				w.WriteHeader(400)
+				fmt.Fprint(w, "File was not found in file system")
+				fmt.Println("File not found: " + fileName)
+				return
+			}
+
+			FileHeader := make([]byte, 512)
+
+			Openfile.Read(FileHeader)
+
+			//We already read 512 bytes, so we reset the offset back to 0
+			Openfile.Seek(0, 0)
+			/*
+				THE BELOW WAS FOR WHEN WE WERE SENDING THE FILE BACK AS A FILE
+				FileContentType := http.DetectContentType(FileHeader)
+				//Get info from file
+				FileStat, _ := Openfile.Stat()
+				//get size of the file as a string value
+				FileSize := strconv.FormatInt(FileStat.Size(), 10)
+				//Send the headers
+				w.Header().Set("Content-Disposition", "attachment; filename="+cardImage.FileName)
+				w.Header().Set("Content-Type", FileContentType)
+				w.Header().Set("Content-Length", FileSize)
+				//Send the file
+				//io.Copy(w, Openfile)
+			*/
+
+			bytes, err := ioutil.ReadAll(Openfile)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			cardimagebytes.ImageBytes = bytes
+
+			fmt.Println("Image converted to []byte and sent to caller for entityid --> " + entityID)
+		} else {
+			//Get bytes for default image
+			defaultFileName := conf.ResourcesPath + "default/default.png"
+			Openfile, err := os.Open(defaultFileName)
+			defer Openfile.Close()
+
+			if err != nil {
+				//File not found
+				w.WriteHeader(400)
+				fmt.Fprint(w, "Default file was not found in file system")
+				fmt.Println("Default file not found: " + defaultFileName)
+				return
+			}
+
+			FileHeader := make([]byte, 512)
+			Openfile.Read(FileHeader)
+			//We already read 512 bytes, so we reset the offset back to 0
+			Openfile.Seek(0, 0)
+			bytes, err := ioutil.ReadAll(Openfile)
+			if err != nil {
+				log.Fatal(err)
+			}
+			cardimagebytes.ImageBytes = bytes
+		}
+
 		// converting response struct to JSON payload to send to service that called this function.
 		js, jserr := json.Marshal(cardimagebytes)
 
