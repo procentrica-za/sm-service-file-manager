@@ -229,6 +229,48 @@ func (s *Server) handlePostCardImageBatch() http.HandlerFunc {
 			cardimages.Images = append(cardimages.Images, cardimagebytes)
 		}
 
+		//Get bytes for default image
+		defaultFileName := conf.ResourcesPath + "default/default.png"
+		Openfile, err := os.Open(defaultFileName)
+		defer Openfile.Close()
+
+		if err != nil {
+			//File not found
+			w.WriteHeader(400)
+			fmt.Fprint(w, "Default file was not found in file system")
+			fmt.Println("Default file not found: " + defaultFileName)
+			return
+		}
+
+		FileHeader := make([]byte, 512)
+		Openfile.Read(FileHeader)
+		//We already read 512 bytes, so we reset the offset back to 0
+		Openfile.Seek(0, 0)
+		bytes, err := ioutil.ReadAll(Openfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defaultImageBytes := bytes
+		//Check if all entities supplied by caller have an image attached
+		imageExists := false
+		for _, entity := range imagerequest.Cards {
+			for _, result := range cardimages.Images {
+				if entity.EntityID == result.EntityID {
+					imageExists = true
+				}
+			}
+			//If no result was returned from the db, provide default image as result
+			if !imageExists {
+				cardimagebytes := CardImageBytes{}
+				cardimagebytes.EntityID = entity.EntityID
+				cardimagebytes.ImageBytes = defaultImageBytes
+				cardimages.Images = append(cardimages.Images, cardimagebytes)
+				fmt.Println("Default image converted to []byte and sent to caller for entityid --> " + entity.EntityID)
+
+			}
+			imageExists = false
+		}
+
 		// converting response struct to JSON payload to send to service that called this function.
 		js, jserr := json.Marshal(cardimages)
 
