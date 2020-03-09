@@ -312,3 +312,117 @@ func (s *Server) handlePostCardImageBatch() http.HandlerFunc {
 		w.Write(js)
 	}
 }
+
+func (s *Server) handleGetAdvertisementImages() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("Handle post Card Image Path Batch has been called...")
+
+		//get advert id from url
+		advertisementid := r.URL.Query().Get("advertisementid")
+
+		//check if a entityid has been provided
+		if advertisementid == "" {
+			//Not set, send 400 bad request
+			w.WriteHeader(400)
+			fmt.Fprint(w, "No advertisement ID provided.")
+			fmt.Println("No advertisement ID has been provided.")
+			return
+		}
+
+		//print to the console that a file was requested
+		fmt.Println("All images have been requested for advertisement --> " + advertisementid)
+
+		//Get file names from CRUD
+		req, respErr := http.Get("http://" + conf.CRUDHost + ":" + conf.CRUDPort + "/advertisementimages?advertisementid=" + advertisementid)
+
+		//check for response error of 500
+		if respErr != nil {
+			w.WriteHeader(500)
+			fmt.Fprint(w, respErr.Error())
+			fmt.Println("Error in communication with CRUD service endpoint for request to get file details")
+			return
+		}
+		if req.StatusCode != 200 {
+			fmt.Println("Request to DB can't be completed to get file details")
+		}
+		if req.StatusCode == 500 {
+			w.WriteHeader(500)
+			bodyBytes, err := ioutil.ReadAll(req.Body)
+			if err != nil {
+				log.Fatal(err)
+			}
+			bodyString := string(bodyBytes)
+			fmt.Fprintf(w, "Database error occured upon retrieval"+bodyString)
+			fmt.Println("Database error occured upon retrieval" + bodyString)
+			return
+		}
+
+		//close the request
+		defer req.Body.Close()
+
+		//create new response struct
+		cardImageBatch := CardImageBatch{}
+		decoder := json.NewDecoder(req.Body)
+		err := decoder.Decode(&cardImageBatch)
+		if err != nil {
+			w.WriteHeader(500)
+			fmt.Fprint(w, err.Error())
+			fmt.Println("Unable to decode cardImage response")
+			return
+		}
+
+		cardimages := CardBytesBatch{}
+		cardimages.Images = []CardImageBytes{}
+
+		//get bytes for all images returned by the crud
+		for _, image := range cardImageBatch.Images {
+			//check if the file exists in the file system
+			fileName := conf.ResourcesPath + image.EntityID + "/" + image.FilePath
+			//If no image exists, get the default image
+
+			if image.FilePath == "" {
+				fileName = conf.ResourcesPath + "default/default.png"
+			}
+
+			Openfile, err := os.Open(fileName)
+			defer Openfile.Close()
+
+			if err != nil {
+				//File not found
+				w.WriteHeader(400)
+				fmt.Fprint(w, "File was not found in file system")
+				fmt.Println("File not found: " + fileName)
+				return
+			}
+
+			FileHeader := make([]byte, 512)
+			Openfile.Read(FileHeader)
+			//We already read 512 bytes, so we reset the offset back to 0
+			Openfile.Seek(0, 0)
+			bytes, err := ioutil.ReadAll(Openfile)
+			if err != nil {
+				log.Fatal(err)
+			}
+			cardimagebytes := CardImageBytes{}
+			cardimagebytes.EntityID = image.EntityID
+			cardimagebytes.ImageBytes = bytes
+
+			fmt.Println("Image converted to []byte and sent to caller for entityid --> " + image.EntityID)
+			cardimages.Images = append(cardimages.Images, cardimagebytes)
+		}
+
+		// converting response struct to JSON payload to send to service that called this function.
+		js, jserr := json.Marshal(cardimages)
+
+		// check to see if any errors occured with coverting to JSON.
+		if jserr != nil {
+			w.WriteHeader(500)
+			fmt.Fprintf(w, "Unable to create JSON object from DB result to fetch Card Images")
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write(js)
+	}
+}
