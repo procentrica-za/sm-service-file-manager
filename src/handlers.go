@@ -8,8 +8,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/google/uuid"
 )
 
+//This function returns one image, for the specific advertisement requested, only returns the main image
 func (s *Server) handleGetCardImage() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		//get entity id from url
@@ -160,6 +163,7 @@ func (s *Server) handleGetCardImage() http.HandlerFunc {
 	}
 }
 
+//This function returns multiple images, based on all the advertisements requested... One image per advertisement
 func (s *Server) handlePostCardImageBatch() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Handle post Card Image Path Batch has been called...")
@@ -313,6 +317,7 @@ func (s *Server) handlePostCardImageBatch() http.HandlerFunc {
 	}
 }
 
+//This function returns all images for a specific advertisement
 func (s *Server) handleGetAdvertisementImages() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Handle post Card Image Path Batch has been called...")
@@ -380,7 +385,7 @@ func (s *Server) handleGetAdvertisementImages() http.HandlerFunc {
 			fileName := conf.ResourcesPath + image.EntityID + "/" + image.FilePath
 			//If no image exists, get the default image
 
-			if image.FilePath == "" {
+			if image.FilePath == "default" {
 				fileName = conf.ResourcesPath + "default/default.png"
 			}
 
@@ -424,5 +429,100 @@ func (s *Server) handleGetAdvertisementImages() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
 		w.Write(js)
+	}
+}
+
+func (s *Server) handleUploadImage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("Handle Upload Image has been called...")
+
+		//get JSON payload
+		image := UploadImage{}
+		err := json.NewDecoder(r.Body).Decode(&image)
+
+		if err != nil {
+			w.WriteHeader(500)
+			fmt.Fprint(w, err.Error())
+			fmt.Println("Unable to decode JSON...")
+			return
+		}
+
+		//generates a new uuid
+		newid := uuid.New()
+		//generates the new path for the image
+		newpath := conf.ResourcesPath + image.EntityID + "/" + newid.String()
+
+		//Make directory
+		if _, err := os.Stat(conf.ResourcesPath + image.EntityID); os.IsNotExist(err) {
+			os.Mkdir(conf.ResourcesPath+image.EntityID, os.ModeDir)
+		}
+		if err != nil {
+			w.WriteHeader(500)
+			fmt.Fprint(w, err.Error())
+			fmt.Println("Unable to create new directory in file system...")
+			return
+		}
+		//0644 = permissions required
+		err = ioutil.WriteFile(newpath, image.ImageBytes, 0644)
+		if err != nil {
+			w.WriteHeader(500)
+			fmt.Fprint(w, err.Error())
+			fmt.Println("Unable to write file to file system...")
+			return
+		}
+
+		//write file data to db
+
+		w.WriteHeader(200)
+		fmt.Fprintf(w, "Image has been saved to the file system.")
+		fmt.Println("Image written to file system for entity --> " + image.EntityID)
+	}
+}
+
+func (s *Server) handleUploadImageBatch() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("Handle Upload Image has been called...")
+
+		//get JSON payload
+		images := UploadImageBatch{}
+		err := json.NewDecoder(r.Body).Decode(&images)
+
+		if err != nil {
+			w.WriteHeader(500)
+			fmt.Fprint(w, err.Error())
+			fmt.Println("Unable to decode JSON...")
+			return
+		}
+
+		for _, image := range images.Images {
+			//generates a new uuid
+			newid := uuid.New()
+			//generates the new path for the image
+			newpath := conf.ResourcesPath + image.EntityID + "/" + newid.String()
+
+			//Make directory
+			if _, err := os.Stat(conf.ResourcesPath + image.EntityID); os.IsNotExist(err) {
+				os.Mkdir(conf.ResourcesPath+image.EntityID, os.ModeDir)
+			}
+			if err != nil {
+				w.WriteHeader(500)
+				fmt.Fprint(w, err.Error())
+				fmt.Println("Unable to create new directory in file system...")
+				return
+			}
+			//0644 = permissions required
+			err = ioutil.WriteFile(newpath, image.ImageBytes, 0644)
+			if err != nil {
+				w.WriteHeader(500)
+				fmt.Fprint(w, err.Error())
+				fmt.Println("Unable to write file to file system...")
+				return
+			}
+		}
+
+		//write file data to db
+
+		w.WriteHeader(200)
+		fmt.Fprintf(w, "Images have been saved to the file system.")
 	}
 }

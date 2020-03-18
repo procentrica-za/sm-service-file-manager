@@ -41,3 +41,13 @@ type CardImageRequest struct {
 type CardImageBatchRequest struct {
 	Cards []CardImageRequest `json:"cards"`
 }
+
+type UploadImage struct {
+	EntityID    string `json:"entityid"`
+	IsMainImage bool   `json:"ismainimage"`
+	ImageBytes  []byte `json:"imagebytes"`
+}
+
+type UploadImageBatch struct {
+	Images []UploadImage `json:"images"`
+}
