@@ -51,3 +51,10 @@ type UploadImage struct {
 type UploadImageBatch struct {
 	Images []UploadImage `json:"images"`
 }
+
+type UploadImageInformation struct {
+	EntityID    string `json:"entityid"`
+	FilePath    string `json:"filepath"`
+	FileName    string `json:"filename"`
+	IsMainImage bool   `json:"ismainimage"`
+}
