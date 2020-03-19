@@ -471,7 +471,39 @@ func (s *Server) handleUploadImage() http.HandlerFunc {
 			return
 		}
 
+		imagePost := UploadImageInformation{}
+		imagePost.EntityID = image.EntityID
+		imagePost.FileName = "UploadedImg"
+		imagePost.FilePath = newid.String()
+		imagePost.IsMainImage = image.IsMainImage
+
 		//write file data to db
+		requestByte, _ := json.Marshal(imagePost)
+		req, respErr := http.Post("http://"+conf.CRUDHost+":"+conf.CRUDPort+"/uploadimage", "application/json", bytes.NewBuffer(requestByte))
+
+		if respErr != nil {
+			w.WriteHeader(500)
+			fmt.Fprint(w, respErr.Error())
+			fmt.Println("Error in communication with CRUD service endpoint for request insert image details")
+			return
+		}
+		if req.StatusCode != 200 {
+			fmt.Println("Request to DB can't be completed to insert image details")
+		}
+		if req.StatusCode == 500 {
+			w.WriteHeader(500)
+			bodyBytes, err := ioutil.ReadAll(req.Body)
+			if err != nil {
+				log.Fatal(err)
+			}
+			bodyString := string(bodyBytes)
+			fmt.Fprintf(w, "Database error occured upon retrieval"+bodyString)
+			fmt.Println("Database error occured upon retrieval" + bodyString)
+			return
+		}
+
+		//close the request
+		defer req.Body.Close()
 
 		w.WriteHeader(200)
 		fmt.Fprintf(w, "Image has been saved to the file system.")
@@ -518,9 +550,41 @@ func (s *Server) handleUploadImageBatch() http.HandlerFunc {
 				fmt.Println("Unable to write file to file system...")
 				return
 			}
-		}
 
-		//write file data to db
+			imagePost := UploadImageInformation{}
+			imagePost.EntityID = image.EntityID
+			imagePost.FileName = "UploadedImg"
+			imagePost.FilePath = newid.String()
+			imagePost.IsMainImage = image.IsMainImage
+
+			//write file data to db
+			requestByte, _ := json.Marshal(imagePost)
+			req, respErr := http.Post("http://"+conf.CRUDHost+":"+conf.CRUDPort+"/uploadimage", "application/json", bytes.NewBuffer(requestByte))
+
+			if respErr != nil {
+				w.WriteHeader(500)
+				fmt.Fprint(w, respErr.Error())
+				fmt.Println("Error in communication with CRUD service endpoint for request insert image details")
+				return
+			}
+			if req.StatusCode != 200 {
+				fmt.Println("Request to DB can't be completed to insert image details")
+			}
+			if req.StatusCode == 500 {
+				w.WriteHeader(500)
+				bodyBytes, err := ioutil.ReadAll(req.Body)
+				if err != nil {
+					log.Fatal(err)
+				}
+				bodyString := string(bodyBytes)
+				fmt.Fprintf(w, "Database error occured upon retrieval"+bodyString)
+				fmt.Println("Database error occured upon retrieval" + bodyString)
+				return
+			}
+
+			//close the request
+			defer req.Body.Close()
+		}
 
 		w.WriteHeader(200)
 		fmt.Fprintf(w, "Images have been saved to the file system.")
