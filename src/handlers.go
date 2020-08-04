@@ -582,7 +582,7 @@ func (s *Server) handleUploadImageBatch() http.HandlerFunc {
 				return
 			}
 
-			//close the request
+			//close the request.
 			defer req.Body.Close()
 		}
 
